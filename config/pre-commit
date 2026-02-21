@@ -1,0 +1,37 @@
+#!/bin/bash
+# Pre-commit hook for docstring coverage validation
+# Place this file in .git/hooks/pre-commit and make it executable:
+#   chmod +x .git/hooks/pre-commit
+
+set -e
+
+PYTHON_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" || true)
+
+if [ -z "$PYTHON_FILES" ]; then
+    exit 0
+fi
+
+echo "🔍 Running docstring checks on staged files..."
+
+# Check if docstring_generator is available
+if ! python -m docstring_generator.cli --help > /dev/null 2>&1; then
+    echo "⚠️  docstring_generator CLI not found. Skipping checks."
+    exit 0
+fi
+
+# Run checks on each Python file
+for file in $PYTHON_FILES; do
+    if [ -f "$file" ]; then
+        echo "Checking: $file"
+        
+        # Check for syntax errors and code issues
+        if ! python -m docstring_generator.cli check "$file" 2>/dev/null; then
+            echo "❌ Code quality check failed for $file"
+            echo "Tip: Run 'docstring-gen generate $file' to auto-fix"
+            exit 1
+        fi
+    fi
+done
+
+echo "✅ All files passed docstring checks"
+exit 0
