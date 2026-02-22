@@ -11,13 +11,45 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-from docstring_generator import (
-    BatchDocstringGenerator,
-    DocstringInserter,
-    DocstringValidator,
-    ErrorDetector,
-    parse_file,
-)
+# Defensive import: editable installs or partial deploys can fail on the
+# build host and cause the whole app to crash. Wrap imports so the app can
+# start and show a helpful error instead of exiting with status 1.
+IMPORT_ERROR = False
+_IMPORT_ERROR_TRACE = None
+try:
+    from docstring_generator import (
+        BatchDocstringGenerator,
+        DocstringInserter,
+        DocstringValidator,
+        ErrorDetector,
+        parse_file,
+    )
+except Exception as _e:  # pragma: no cover - runtime guard
+    IMPORT_ERROR = True
+    import traceback
+
+    _IMPORT_ERROR_TRACE = traceback.format_exc()
+
+    # Lightweight placeholders to avoid NameError during runtime; real
+    # functionality will remain unavailable until the package installs.
+    class BatchDocstringGenerator:  # type: ignore
+        def __init__(self, *a, **k):
+            raise RuntimeError("docstring_generator not available; see logs")
+
+    class DocstringInserter:  # type: ignore
+        def __init__(self, *a, **k):
+            raise RuntimeError("docstring_generator not available; see logs")
+
+    class DocstringValidator:  # type: ignore
+        def __init__(self, *a, **k):
+            raise RuntimeError("docstring_generator not available; see logs")
+
+    class ErrorDetector:  # type: ignore
+        def __init__(self, *a, **k):
+            raise RuntimeError("docstring_generator not available; see logs")
+
+    def parse_file(*a, **k):  # type: ignore
+        raise RuntimeError("docstring_generator not available; see logs")
 
 
 st.set_page_config(
