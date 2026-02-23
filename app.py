@@ -11,9 +11,7 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
-# Defensive import: editable installs or partial deploys can fail on the
-# build host and cause the whole app to crash. Wrap imports so the app can
-# start and show a helpful error instead of exiting with status 1.
+
 IMPORT_ERROR = False
 _IMPORT_ERROR_TRACE = None
 try:
@@ -24,14 +22,12 @@ try:
         ErrorDetector,
         parse_file,
     )
-except Exception as _e:  # pragma: no cover - runtime guard
+except Exception as _e:  
     IMPORT_ERROR = True
     import traceback
 
     _IMPORT_ERROR_TRACE = traceback.format_exc()
 
-    # Lightweight placeholders to avoid NameError during runtime; real
-    # functionality will remain unavailable until the package installs.
     class BatchDocstringGenerator:  # type: ignore
         def __init__(self, *a, **k):
             raise RuntimeError("docstring_generator not available; see logs")
@@ -179,12 +175,14 @@ def page_home() -> None:
 
 
 def page_analyze() -> None:
-    render_page_header("Analyze", "Upload or paste Python code to analyze structure", "📂")
+    render_page_header("Analyze", "Upload, enter path, or paste Python code to analyze structure", "📂")
     
-    col1, col2 = st.columns([2, 1])
+    # Tabs for different input methods
+    input_tab1, input_tab2, input_tab3 = st.tabs(["📥 Upload File", "📂 Enter Path", "📝 Paste Code"])
     
-    with col1:
-        uploaded = st.file_uploader("📥 Upload Python File", type=["py"], help="Select a .py file to analyze")
+    with input_tab1:
+        st.markdown("### Upload a Python File")
+        uploaded = st.file_uploader("Select a .py file to analyze", type=["py"], help="Choose a single Python file", key="file_uploader")
         if uploaded is not None:
             code = uploaded.read().decode("utf-8")
             st.session_state.code = code
@@ -195,7 +193,7 @@ def page_analyze() -> None:
             st.session_state.metadata = metadata
             Path(tmp).unlink(missing_ok=True)
             
-            st.success("✅ File parsed successfully!")
+            st.success(f"✅ File '{uploaded.name}' parsed successfully!")
             
             # Show statistics
             meta = st.session_state.metadata
@@ -208,13 +206,125 @@ def page_analyze() -> None:
             metric_cols[1].metric("🔧 Functions", funcs)
             metric_cols[2].metric("📦 Classes", classes)
     
-    with col2:
-        st.markdown("""
-        **Tips:**
-        - Analyze multiple files
-        - Check for existing docstrings
-        - Review class/method structure
-        """)
+    with input_tab2:
+        st.markdown("### Enter File or Directory Path")
+        st.info("📌 Enter the full path to a Python file or directory containing Python files")
+        
+        path_input = st.text_input(
+            "File/Directory Path",
+            placeholder="/home/user/project/file.py or /home/user/project/src",
+            help="Absolute or relative path to a .py file or directory"
+        )
+        
+        if path_input:
+            path_obj = Path(path_input)
+            
+            if not path_obj.exists():
+                st.error(f"❌ Path does not exist: {path_input}")
+            elif path_obj.is_file():
+                if path_obj.suffix == ".py":
+                    try:
+                        code = path_obj.read_text(encoding="utf-8")
+                        st.session_state.code = code
+                        metadata = parse_file(str(path_obj))
+                        st.session_state.metadata = metadata
+                        
+                        st.success(f"✅ File '{path_obj.name}' parsed successfully!")
+                        
+                        # Show statistics
+                        meta = st.session_state.metadata
+                        funcs = len(getattr(meta, "functions", []) or [])
+                        classes = len(getattr(meta, "classes", []) or [])
+                        lines = len(code.splitlines())
+                        
+                        metric_cols = st.columns(3)
+                        metric_cols[0].metric("📏 Lines of Code", lines)
+                        metric_cols[1].metric("🔧 Functions", funcs)
+                        metric_cols[2].metric("📦 Classes", classes)
+                    except Exception as e:
+                        st.error(f"❌ Error reading file: {str(e)}")
+                else:
+                    st.error("❌ File is not a Python file (.py)")
+            elif path_obj.is_dir():
+                # List Python files in directory
+                py_files = sorted(path_obj.glob("**/*.py"))
+                if not py_files:
+                    st.warning("⚠️ No Python files found in directory")
+                else:
+                    st.success(f"✅ Found {len(py_files)} Python file(s) in directory")
+                    st.markdown("### 📋 Python Files Found")
+                    selected_file = st.selectbox(
+                        "Select a file to analyze",
+                        py_files,
+                        format_func=lambda f: f"{f.name} ({f.parent.name}/)"
+                    )
+                    
+                    if selected_file:
+                        try:
+                            code = selected_file.read_text(encoding="utf-8")
+                            st.session_state.code = code
+                            metadata = parse_file(str(selected_file))
+                            st.session_state.metadata = metadata
+                            
+                            st.success(f"✅ File '{selected_file.name}' parsed successfully!")
+                            
+                            # Show statistics
+                            meta = st.session_state.metadata
+                            funcs = len(getattr(meta, "functions", []) or [])
+                            classes = len(getattr(meta, "classes", []) or [])
+                            lines = len(code.splitlines())
+                            
+                            metric_cols = st.columns(3)
+                            metric_cols[0].metric("📏 Lines of Code", lines)
+                            metric_cols[1].metric("🔧 Functions", funcs)
+                            metric_cols[2].metric("📦 Classes", classes)
+                        except Exception as e:
+                            st.error(f"❌ Error reading file: {str(e)}")
+    
+    with input_tab3:
+        st.markdown("### Paste Python Code")
+        code_input = st.text_area(
+            "Python code",
+            height=300,
+            placeholder="def my_function(x):\n    return x * 2",
+            key="code_input"
+        )
+        
+        if code_input:
+            st.session_state.code = code_input
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+                f.write(code_input)
+                tmp = f.name
+            try:
+                metadata = parse_file(tmp)
+                st.session_state.metadata = metadata
+                
+                st.success("✅ Code parsed successfully!")
+                
+                # Show statistics
+                meta = st.session_state.metadata
+                funcs = len(getattr(meta, "functions", []) or [])
+                classes = len(getattr(meta, "classes", []) or [])
+                lines = len(code_input.splitlines())
+                
+                metric_cols = st.columns(3)
+                metric_cols[0].metric("📏 Lines of Code", lines)
+                metric_cols[1].metric("🔧 Functions", funcs)
+                metric_cols[2].metric("📦 Classes", classes)
+            except Exception as e:
+                st.error(f"❌ Error parsing code: {str(e)}")
+            finally:
+                Path(tmp).unlink(missing_ok=True)
+    
+    st.markdown("---")
+    st.markdown("### 💡 Tips")
+    st.markdown("""
+    - **Upload**: Select a single file via file browser
+    - **Path**: Enter file path (e.g., `/home/user/file.py`) or directory path to browse available files
+    - **Paste**: Copy and paste code directly for quick analysis
+    - Check for existing docstrings
+    - Review class/method structure
+    """)
     
     st.markdown("---")
     
