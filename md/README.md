@@ -566,20 +566,6 @@ MIT License - See LICENSE file for details
 - CLI tool
 - Batch processing
 
-## Roadmap
-
-- [x] Selective docstring generation
-- [x] Before/After quality comparison
-- [x] Multi-format export (Markdown, JSON, CSV, HTML)
-- [x] Professional UI with emojis
-- [ ] AI-powered summary generation (OpenAI/Anthropic)
-- [ ] Advanced type hint inference
-- [ ] Database-backed change tracking
-- [ ] VS Code extension
-- [ ] API server for remote processing
-- [ ] Custom template support
-- [ ] Multi-language support
-- [ ] Dark mode theme
 
 ## Support
 
